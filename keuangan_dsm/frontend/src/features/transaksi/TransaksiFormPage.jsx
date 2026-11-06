@@ -1,12 +1,12 @@
 import { useEffect, useId, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import PageHeader from '../../components/ui/PageHeader';
 import InputRupiah from '../../components/ui/InputRupiah';
-import { Loading, Notice, Segmen } from '../../components/ui/kit';
+import { Loading, Notice, PanelPencairan, Rincian, Segmen } from '../../components/ui/kit';
 import * as api from '../../api/transaksi.api';
 import { listProject, TAHAP } from '../../api/project.api';
-import { formatAngka, formatRupiah } from '../../utils/format';
-import { dppPpn, labelPesanan, nomorPembayaran } from '../../utils/pesanan';
+import { formatRupiah } from '../../utils/format';
+import { PPN_PESANAN, labelPesanan, nomorPembayaran } from '../../utils/pesanan';
 
 const hariIni = () => new Date().toISOString().slice(0, 10);
 const KLASIFIKASI = ['PROJECT', 'PESANAN', 'OPERASIONAL'];
@@ -28,16 +28,20 @@ function bentukAwal(t, awal) {
   };
 }
 
-function InfoKontrak({ pekerjaan }) {
-  const { dpp, ppn } = dppPpn(pekerjaan.nilaiKontrak);
-  const item = [['Nilai kontrak', pekerjaan.nilaiKontrak], ['SP2D', pekerjaan.sp2d], ['DPP', dpp], ['PPN', ppn]];
-  return (
-    <dl aria-label="Info kontrak pekerjaan" className="grid grid-cols-2 gap-x-6 gap-y-2 rounded-2xl border border-army-200 bg-army-50 px-4 py-3 text-sm sm:col-span-2 sm:grid-cols-4">
-      {item.map(([label, nilai]) => (
-        <div key={label}><dt className="text-xs font-semibold uppercase tracking-wide text-army-500">{label}</dt><dd className="font-num font-semibold text-army-800">{formatAngka(nilai)}</dd></div>
-      ))}
-    </dl>
-  );
+/** Kontrak project. DPP dan PPN hanya untuk klasifikasi Pesanan, dan mengikuti pesanan pada pekerjaan terpilih. */
+function InfoKontrak({ project, pekerjaan, denganPajak }) {
+  const ps = pekerjaan?.pesanan[0];
+  const baris = [
+    { label: 'Nilai kontrak', nilai: formatRupiah(project.nilaiKontrak) },
+    { label: 'SP2D', nilai: formatRupiah(project.sp2d) },
+  ];
+  if (denganPajak) {
+    baris.push(
+      { label: 'DPP pesanan', nilai: ps ? formatRupiah(ps.dpp) : '—', nada: ps ? 'default' : 'redup' },
+      { label: `PPN ${PPN_PESANAN}%`, nilai: ps ? formatRupiah(ps.ppn) : '—', nada: ps ? 'default' : 'redup' },
+    );
+  }
+  return <Rincian judul="Kontrak project" baris={baris} kolom={2} className="sm:col-span-2" />;
 }
 
 function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
@@ -61,8 +65,18 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
   const milikSendiri = (ps) => (transaksi && !kosong && transaksi.klasifikasi === 'PESANAN' && transaksi.pesananId === ps.id ? transaksi.nominal : 0);
   const sisaEfektif = (ps) => ps.sisa + milikSendiri(ps);
   const pesanan = pekerjaan?.pesanan.find((x) => x.id === Number(form.pesananId));
-  const tahapSendiri = transaksi && !kosong && transaksi.pekerjaanId === pekerjaan?.id ? transaksi.tahap : null;
-  const tahapTersedia = TAHAP.filter((t) => pekerjaan?.pencairan.find((x) => x.tahap === t.key)?.status !== 'DONE' || t.key === tahapSendiri);
+  // SP2D dan pencairan berlaku untuk seluruh project
+  const tahapSendiri = transaksi && !kosong && transaksi.projectId === project?.id ? transaksi.tahap : null;
+  const sudahCair = (key) => project?.pencairan.find((x) => x.tahap === key)?.status === 'DONE';
+  const tahapTersedia = TAHAP.filter((t) => !sudahCair(t.key) || t.key === tahapSendiri);
+  // tahap berikutnya: setelah tahap terakhir yang sudah cair (mis. Termin II cair, maka Termin III)
+  const tahapBerikut = (() => {
+    const urut = TAHAP.map((t) => t.key);
+    const terakhir = Math.max(-1, ...urut.map((k, i) => (sudahCair(k) ? i : -1)));
+    const bisa = tahapTersedia.map((t) => t.key);
+    return urut.slice(terakhir + 1).find((k) => bisa.includes(k)) ?? bisa[0] ?? '';
+  })();
+  const ubahTanpaTahap = !!transaksi && !kosong && !transaksi.tahap; // transaksi lama yang bukan pencairan SP2D
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
   const aria = (n) => ({ 'aria-invalid': !!errors[n], 'aria-describedby': errors[n] ? `${n}-err` : undefined });
@@ -76,6 +90,16 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
   function pilihPekerjaan(e) {
     setForm((f) => ({ ...f, pekerjaanId: e.target.value, pesananId: '', tahap: '' }));
   }
+
+  // project hanya memiliki satu pekerjaan: langsung terisi (termasuk saat project datang dari tautan)
+  useEffect(() => {
+    if (project && !form.pekerjaanId && project.pekerjaan.length === 1) setForm((f) => ({ ...f, pekerjaanId: String(project.pekerjaan[0].id) }));
+  }, [project?.id, form.pekerjaanId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // dana masuk pada klasifikasi Project: tahap pencairan berikutnya langsung terisi (tetap dapat diganti)
+  useEffect(() => {
+    if (kl === 'PROJECT' && arah === 'MASUK' && project && !form.tahap && tahapBerikut && !ubahTanpaTahap) setForm((f) => ({ ...f, tahap: tahapBerikut }));
+  }, [kl, arah, project?.id, form.tahap, tahapBerikut]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // hanya satu pesanan di pekerjaan ini: langsung terpilih
   useEffect(() => {
@@ -98,7 +122,7 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
       else if (!form.pekerjaanId) e.pekerjaanId = 'Pilih pekerjaan.';
     }
     if (isPesanan && pekerjaan) {
-      if (!pesanan) e.pesananId = pekerjaan.pesanan.length ? 'Pilih pesanan yang dibayar.' : 'Pekerjaan ini belum memiliki pesanan. Tambahkan pesanan melalui Ubah project.';
+      if (!pesanan) e.pesananId = pekerjaan.pesanan.length ? 'Pilih pesanan yang dibayar.' : 'Pesanan pada pekerjaan ini belum dicatat.';
       else if (nominal > sisaEfektif(pesanan) + 1) e.nominal = `Pembayaran melebihi sisa pesanan (${formatRupiah(sisaEfektif(pesanan))}).`;
     }
     if (kl === 'OPERASIONAL' && !form.subkategori.trim()) e.subkategori = 'Jenis operasional wajib diisi.';
@@ -112,7 +136,7 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
     if (Object.keys(e).length) return;
     setBusy(true);
     setSubmitError('');
-    const data = { ...form, arah };
+    const data = { ...form, arah, tahap: kl === 'PROJECT' && arah === 'MASUK' ? form.tahap : '' };
     try {
       if (transaksi) await api.updateTransaksi(transaksi.id, data);
       else await api.createTransaksi(data);
@@ -126,8 +150,16 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
 
   const judulDetail = { PROJECT: 'Detail project', PESANAN: 'Detail pesanan', OPERASIONAL: 'Detail operasional' }[kl];
 
+  const adaSamping = kl !== 'OPERASIONAL' && !!project; // panel SP2D muncul di kiri setelah project dipilih
+
   return (
-    <form onSubmit={submit} noValidate className="space-y-6">
+    <div className={adaSamping ? 'mx-auto max-w-3xl lg:max-w-none lg:grid lg:grid-cols-[22rem_minmax(0,48rem)] lg:items-start lg:justify-center lg:gap-6' : 'mx-auto max-w-3xl'}>
+    {adaSamping && (
+      <aside aria-label="Pencairan SP2D" className="hidden lg:sticky lg:top-28 lg:block">
+        <PanelPencairan pekerjaan={project} />
+      </aside>
+    )}
+    <form onSubmit={submit} noValidate className="min-w-0 space-y-6">
       <section className="card flex-row flex-wrap items-center justify-between gap-3 p-5 sm:px-8" aria-labelledby="judul-klas">
         <h2 id="judul-klas" className="text-lg font-bold">Klasifikasi</h2>
         <Segmen label="Klasifikasi" name="klasifikasi" value={kl} onChange={onChange}
@@ -158,7 +190,7 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
           <div className="field">
             <span className="label">Arah dana</span>
             <Segmen label="Arah dana" name="arah" value={arah} onChange={onChange} disabled={isKas || isPesanan} options={[{ value: 'MASUK', label: 'Dana masuk' }, { value: 'KELUAR', label: 'Dana keluar' }]} />
-            {isPesanan ? <span className="hint text-xs">Pembayaran pesanan hanya dapat berupa dana keluar.</span> : isKas && <span className="hint text-xs">Rekening kas hanya dapat digunakan untuk dana keluar.</span>}
+            {isPesanan ? <span className="hint text-xs">Pembayaran pesanan dicatat sebagai dana keluar.</span> : isKas && <span className="hint text-xs">Rekening kas khusus dana keluar.</span>}
           </div>
           <div className="field">
             <div className="flex items-center justify-between gap-2">
@@ -189,7 +221,12 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
                 </select>
                 {galat('pekerjaanId')}
               </div>
-              {pekerjaan && <InfoKontrak pekerjaan={pekerjaan} />}
+              {project && kl !== 'OPERASIONAL' && (
+                <>
+                  <InfoKontrak project={project} pekerjaan={pekerjaan} denganPajak={isPesanan} />
+                  <PanelPencairan pekerjaan={project} className="sm:col-span-2 lg:hidden" />
+                </>
+              )}
             </>
           )}
         </div>
@@ -200,22 +237,18 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
 
         {kl === 'PROJECT' && (
           <div className="grid gap-5 sm:grid-cols-2">
-            {!pekerjaan && <p className="hint sm:col-span-2">Pilih project dan pekerjaan pada bagian Data transaksi.</p>}
-            {arah === 'MASUK' && pekerjaan && (
-              <div className="field rounded-2xl border border-army-200 bg-army-50 p-4 sm:col-span-2">
+            {!project && <p className="hint sm:col-span-2">Pilih project dan pekerjaan terlebih dahulu.</p>}
+            {arah === 'MASUK' && project && (
+              <div className="field sm:col-span-2">
                 <label className="label" htmlFor="tahap">Tahap pencairan</label>
-                <select id="tahap" name="tahap" className="input" value={form.tahap} onChange={onChange}>
-                  <option value="">Bukan pencairan SP2D</option>
+                <select id="tahap" name="tahap" className="input" value={form.tahap} onChange={onChange} disabled={tahapTersedia.length === 0 && !ubahTanpaTahap}>
+                  {ubahTanpaTahap && <option value="">Bukan pencairan SP2D</option>}
+                  {tahapTersedia.length === 0 && !ubahTanpaTahap && <option value="">Seluruh tahap telah tercatat</option>}
                   {tahapTersedia.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
                 </select>
-                <span className="hint text-xs">
-                  SP2D {formatRupiah(pekerjaan.sp2d)} · Sisa <strong>{formatRupiah(pekerjaan.belumCair)}</strong>
-                  {tahapTersedia.length === 0 && ' · Seluruh tahap pencairan sudah tercatat.'}
-                  {tahapTersedia.length > 0 && tahapTersedia.length < TAHAP.length && ' · Tahap yang telah tercatat tidak ditampilkan.'}
-                </span>
               </div>
             )}
-            {arah === 'KELUAR' && pekerjaan && <p className="hint sm:col-span-2">Dana keluar pada klasifikasi Project dicatat sebagai biaya langsung. Pembayaran kepada AJK dicatat melalui klasifikasi Pesanan.</p>}
+            {arah === 'KELUAR' && project && <p className="hint sm:col-span-2">Biaya langsung project. Pembayaran kepada AJK dicatat pada klasifikasi Pesanan.</p>}
             <div className="field sm:col-span-2">
               <label className="label" htmlFor="noInvoice">No. invoice (opsional)</label>
               <input id="noInvoice" name="noInvoice" className="input" value={form.noInvoice} onChange={onChange} />
@@ -225,26 +258,15 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
 
         {isPesanan && (
           <div className="space-y-5">
-            {!pekerjaan && <p className="hint">Pilih project dan pekerjaan pada bagian Data transaksi.</p>}
+            {!pekerjaan && <p className="hint">Pilih project dan pekerjaan terlebih dahulu.</p>}
             {pekerjaan && (
               <>
-                <div>
-                  <p className="label mb-2">Status pencairan dari instansi</p>
-                  <ul className="flex flex-wrap gap-2">
-                    {pekerjaan.pencairan.map((x) => (
-                      <li key={x.tahap} className={`badge ${x.status === 'DONE' ? 'badge-ok' : 'badge-idle'}`}>
-                        {x.label} {x.status === 'DONE' ? `✓ ${formatAngka(x.realisasi)}` : 'belum'}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
                 <div role="radiogroup" aria-label="Pesanan yang dibayar" aria-describedby={errors.pesananId ? 'pesananId-err' : undefined} className="grid gap-3">
                   <p className="label">Pesanan yang dibayar</p>
                   {pekerjaan.pesanan.length === 0 && (
                     <p className="rounded-2xl border border-dashed border-army-300 px-4 py-6 text-center text-sm text-army-600">
-                      Pekerjaan ini belum memiliki pesanan.{' '}
-                      <Link className="font-semibold text-army-800 underline" to={`/project/${project.id}/ubah`}>Tambahkan pesanan melalui Ubah project</Link>.
+                      Pesanan pada pekerjaan ini belum dicatat.{' '}
+                      <Link className="font-semibold text-army-800 underline" to={`/project/${project.id}/ubah`}>Lengkapi melalui Ubah project</Link>.
                     </p>
                   )}
                   {pekerjaan.pesanan.map((ps) => {
@@ -270,15 +292,21 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
                 </div>
 
                 {pesanan && (
-                  <div className="space-y-1 rounded-2xl border border-army-200 bg-army-50 px-4 py-3 text-sm" role="status">
-                    <p>Transaksi ini akan dicatat sebagai <strong>Pembayaran {nomorBayar}</strong> untuk pesanan {labelPesanan(pesanan)}.</p>
-                    <p className="text-army-600">
-                      DPP {formatRupiah(pesanan.dpp)} · PPN {formatRupiah(pesanan.ppn)}
-                      {nominal > 0 && (sisaSetelah >= 0
-                        ? <> · Sisa setelah pembayaran ini <strong className="font-num text-army-800">{formatRupiah(sisaSetelah)}</strong>{sisaSetelah < 1 && ' (lunas)'}</>
-                        : <> · <span className="font-semibold text-red-700">Melebihi sisa pesanan sebesar {formatRupiah(-sisaSetelah)}</span></>)}
-                    </p>
-                  </div>
+                  <Rincian
+                    judul="Ringkasan pembayaran"
+                    baris={[
+                      { label: 'Pesanan', nilai: labelPesanan(pesanan) },
+                      { label: 'Pembayaran ke', nilai: nomorBayar },
+                      { label: 'Total pesanan', nilai: formatRupiah(pesanan.total) },
+                      { label: 'Sudah dibayar', nilai: formatRupiah(pesanan.dibayar - milikSendiri(pesanan)), nada: 'masuk' },
+                      { label: 'Pembayaran ini', nilai: nominal > 0 ? formatRupiah(nominal) : '—', nada: nominal > 0 ? 'keluar' : 'redup' },
+                      sisaSetelah !== null && nominal > 0
+                        ? (sisaSetelah >= 0
+                          ? { label: 'Sisa setelah pembayaran', nilai: formatRupiah(sisaSetelah), tebal: true, lencana: sisaSetelah < 1 ? <span className="badge badge-ok">Lunas</span> : null }
+                          : { label: 'Melebihi sisa pesanan', nilai: formatRupiah(-sisaSetelah), nada: 'neg', tebal: true })
+                        : { label: 'Sisa pesanan', nilai: formatRupiah(sisaEfektif(pesanan)), tebal: true },
+                    ]}
+                  />
                 )}
               </>
             )}
@@ -313,6 +341,7 @@ function Form({ transaksi, projects, kategoriOpsi, awal, kosong }) {
         <button type="submit" className="btn btn-primary w-full" disabled={busy}>{busy ? 'Menyimpan…' : 'Simpan transaksi'}</button>
       </div>
     </form>
+    </div>
   );
 }
 
@@ -336,14 +365,15 @@ export default function TransaksiFormPage() {
     <>
       <PageHeader
         title={id ? 'Ubah transaksi' : 'Tambah transaksi'}
-        hint="Isi data transaksi dengan lengkap dan benar."
+        hint="Pencatatan dana masuk dan dana keluar."
         back={{ to: '/transaksi', label: 'Kembali ke Transaksi' }}
         onKosongkan={state.status === 'ok' ? () => setReset((n) => n + 1) : undefined}
       />
-      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
         {state.status === 'loading' && <Loading>Memuat formulir…</Loading>}
         {state.status === 'error' && <Notice tone="danger">{state.pesan}</Notice>}
-        {state.status === 'ok' && <Form key={`${id || 'baru'}-${reset}`} {...state} awal={awal} kosong={reset > 0} />}
+        {state.status === 'ok' && state.transaksi?.klasifikasi === 'PIUTANG' && <Navigate to={`/transaksi/piutang/${state.transaksi.id}/ubah`} replace />}
+        {state.status === 'ok' && state.transaksi?.klasifikasi !== 'PIUTANG' && <Form key={`${id || 'baru'}-${reset}`} {...state} awal={awal} kosong={reset > 0} />}
       </div>
     </>
   );

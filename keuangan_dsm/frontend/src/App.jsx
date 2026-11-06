@@ -11,6 +11,8 @@ import ProjectPage from './features/project/ProjectPage';
 import ProjectFormPage from './features/project/ProjectFormPage';
 import ProjectDetailPage from './features/project/ProjectDetailPage';
 import OperasionalPage from './features/operasional/OperasionalPage';
+import PiutangPage from './features/piutang/PiutangPage';
+import PiutangFormPage from './features/piutang/PiutangFormPage';
 
 function TidakDitemukan() {
   return (
@@ -41,6 +43,10 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="transaksi" element={<TransaksiPage />} />
+              <Route path="transaksi/piutang" element={<PiutangPage />} />
+              <Route path="transaksi/piutang/tambah" element={<PiutangFormPage />} />
+              <Route path="transaksi/piutang/:id/ubah" element={<PiutangFormPage />} />
+              <Route path="transaksi/rekap" element={<Alihkan ke="/transaksi?tampilan=rekap" />} />
               <Route path="transaksi/tambah" element={<TransaksiFormPage />} />
               <Route path="transaksi/:id/ubah" element={<TransaksiFormPage />} />
               <Route path="project" element={<ProjectPage />} />

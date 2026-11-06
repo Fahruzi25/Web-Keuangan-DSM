@@ -5,46 +5,7 @@ import { formatAngka, formatRupiah, formatSingkat, formatTanggal } from '../../u
 import { BULAN_SINGKAT } from '../../utils/bulan';
 import PageHeader from '../../components/ui/PageHeader';
 import { Loading, Notice, Progress, Stat, Kosong } from '../../components/ui/kit';
-
-function GrafikArus({ data }) {
-  const W = 760, H = 280, kiri = 56, atas = 16, bawah = 32;
-  const tinggi = H - atas - bawah;
-  const maks = Math.max(1, ...data.flatMap((d) => [d.masuk, d.keluar]));
-  const slot = (W - kiri) / 12;
-  const lebar = Math.min(16, slot / 2 - 3);
-  const garis = [0, 0.25, 0.5, 0.75, 1];
-
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img"
-      aria-label="Grafik batang dana masuk dan dana keluar per bulan. Angka lengkap ada di tabel tersembunyi di bawahnya.">
-      {garis.map((g) => {
-        const y = atas + tinggi * (1 - g);
-        return (
-          <g key={g}>
-            <line x1={kiri} x2={W} y1={y} y2={y} className="stroke-army-100" strokeDasharray={g === 0 ? undefined : '4 4'} />
-            <text x={kiri - 8} y={y + 4} textAnchor="end" className="fill-army-500 text-[11px]">{g === 0 ? '0' : formatSingkat(maks * g)}</text>
-          </g>
-        );
-      })}
-      {data.map((d, i) => {
-        const x = kiri + slot * i + slot / 2;
-        const hm = (d.masuk / maks) * tinggi;
-        const hk = (d.keluar / maks) * tinggi;
-        return (
-          <g key={BULAN_SINGKAT[i]}>
-            <rect x={x - lebar - 1} y={atas + tinggi - hm} width={lebar} height={hm} rx="4" className="fill-army-500 hover:fill-army-600">
-              <title>{`${BULAN_SINGKAT[i]}: masuk ${formatRupiah(d.masuk)}`}</title>
-            </rect>
-            <rect x={x + 1} y={atas + tinggi - hk} width={lebar} height={hk} rx="4" className="fill-ember-500 hover:fill-ember-600">
-              <title>{`${BULAN_SINGKAT[i]}: keluar ${formatRupiah(d.keluar)}`}</title>
-            </rect>
-            <text x={x} y={H - 10} textAnchor="middle" className="fill-army-600 text-[11px]">{BULAN_SINGKAT[i]}</text>
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
+import GrafikArus from './GrafikArus';
 
 export default function DashboardPage() {
   const [d, setD] = useState(null);
@@ -109,22 +70,23 @@ export default function DashboardPage() {
               <h2 id="judul-arus" className="text-lg font-bold">Arus dana per bulan</h2>
               <p className="hint">Dana masuk dan dana keluar rekening global per bulan.</p>
             </div>
-            <div className="flex gap-4 text-xs font-semibold text-army-600" aria-hidden="true">
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-army-600" aria-hidden="true">
               <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded bg-army-500" /> Dana masuk</span>
               <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded bg-ember-500" /> Dana keluar</span>
+              <span className="inline-flex items-center gap-1.5"><i className="inline-block h-0.5 w-4 rounded bg-army-900" /><i className="-ml-3.5 h-2 w-2 rounded-full border-2 border-army-900 bg-white" /> Selisih</span>
             </div>
           </div>
           {kosong ? (
-            <Kosong>Belum ada transaksi pada tahun berjalan. Grafik ditampilkan setelah transaksi pertama dicatat.</Kosong>
+            <Kosong>Belum ada transaksi pada tahun berjalan.</Kosong>
           ) : (
             <>
               <GrafikArus data={d.perBulan} />
               <table className="sr-only">
-                <caption>Dana masuk dan keluar per bulan</caption>
-                <thead><tr><th scope="col">Bulan</th><th scope="col">Dana masuk</th><th scope="col">Dana keluar</th></tr></thead>
+                <caption>Dana masuk, dana keluar, dan selisih per bulan</caption>
+                <thead><tr><th scope="col">Bulan</th><th scope="col">Dana masuk</th><th scope="col">Dana keluar</th><th scope="col">Selisih</th></tr></thead>
                 <tbody>
                   {d.perBulan.map((b, i) => (
-                    <tr key={BULAN_SINGKAT[i]}><th scope="row">{BULAN_SINGKAT[i]}</th><td>{formatAngka(b.masuk)}</td><td>{formatAngka(b.keluar)}</td></tr>
+                    <tr key={BULAN_SINGKAT[i]}><th scope="row">{BULAN_SINGKAT[i]}</th><td>{formatAngka(b.masuk)}</td><td>{formatAngka(b.keluar)}</td><td>{formatAngka(b.masuk - b.keluar)}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -133,8 +95,8 @@ export default function DashboardPage() {
         </section>
 
         <section aria-label="Indikator project" className="grid gap-4 md:grid-cols-3">
-          <Stat label="Project selesai" value={`${x.projectSelesai} dari ${x.jumlahProject}`} sub={`${x.pekerjaanSelesai} dari ${x.jumlahPekerjaan} pekerjaan selesai`}>
-            <Progress persen={x.jumlahPekerjaan ? (x.pekerjaanSelesai / x.jumlahPekerjaan) * 100 : 0} label="Pekerjaan selesai" />
+          <Stat label="Project selesai" value={`${x.projectSelesai} dari ${x.jumlahProject}`} sub="SP2D sudah cair seluruhnya">
+            <Progress persen={x.jumlahProject ? (x.projectSelesai / x.jumlahProject) * 100 : 0} label="Project selesai" />
           </Stat>
           <Stat label="SP2D sudah cair" value={formatRupiah(x.cair)} sub={`${Math.round(persenCair)}% dari total SP2D ${formatSingkat(x.sp2d)}`}>
             <Progress persen={persenCair} label="SP2D sudah cair" />
@@ -148,6 +110,14 @@ export default function DashboardPage() {
             <Progress persen={x.totalPesanan ? (x.dibayarPesanan / x.totalPesanan) * 100 : 0} label="Pesanan yang sudah dibayar" />
           </Stat>
           <Stat label="Sisa pembayaran" value={formatRupiah(x.sisaPesanan)} tone="keluar" sub="Kewajiban pesanan yang belum dibayar" />
+        </section>
+
+        <section aria-label="Piutang" className="grid gap-4 md:grid-cols-3">
+          <Stat label="Sisa piutang" value={formatRupiah(d.piutang.sisa)} tone="keluar" sub={`${d.piutang.pihakBelumLunas} dari ${d.piutang.jumlahPihak} pihak belum lunas`} />
+          <Stat label="Pinjaman keluar" value={formatRupiah(d.piutang.pinjamanKeluar)} sub="Seluruh pinjaman yang diberikan" />
+          <Stat label="Pembayaran diterima" value={formatRupiah(d.piutang.pembayaranDiterima)} tone="masuk" sub={`${Math.round(d.piutang.pinjamanKeluar ? (d.piutang.pembayaranDiterima / d.piutang.pinjamanKeluar) * 100 : 0)}% dari total pinjaman`}>
+            <Progress persen={d.piutang.pinjamanKeluar ? (d.piutang.pembayaranDiterima / d.piutang.pinjamanKeluar) * 100 : 0} label="Piutang yang sudah dibayar" />
+          </Stat>
         </section>
 
         <section className="card overflow-hidden" aria-labelledby="judul-terbaru">

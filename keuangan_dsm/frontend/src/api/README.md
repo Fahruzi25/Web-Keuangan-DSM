@@ -1,13 +1,11 @@
-# Folder api (MODE DEMO)
+# Folder api
 
-Backend belum tersambung. Semua `*.api.js` membaca dan menulis data di `mockDb.js`, yang menyimpannya di
-`localStorage` browser. Hasilnya, Project, Pesanan, Transaksi, Operasional, dan Dashboard saling terhubung
-persis seperti nanti dengan server, dan semua aturan sudah dijalankan:
+Saat ini aplikasi berjalan **tanpa backend** (mode demo, bawaan). Data disimpan di `localStorage` browser. Saat pertama dibuka, data contoh dimuat; tombol di footer dapat mengosongkannya atau memuatnya lagi.
 
-- Pencairan satu tahap hanya sekali per pekerjaan, dan total pencairan tidak boleh melebihi SP2D.
-- Pembayaran pesanan tidak boleh melebihi sisa, dan nomor pembayaran mengikuti urutan tanggal.
-- Project, pekerjaan, atau pesanan yang sudah punya transaksi tidak bisa dihapus.
+- `*.api.js` : pemanggilan yang dipakai halaman. Di mode demo memakai `demo/`; di mode `http` memanggil backend lewat `BASE_URL`.
+- `client.js` : `BASE_URL` (dari `VITE_API_BASE_URL`), token sesi, dan fungsi `http()`. Sudah siap, belum dipakai selama mode demo.
+- `mode.js` : sumber data. `VITE_API_MODE=http` beralih ke backend.
+- `demo/` : implementasi tanpa server, termasuk `contoh.js` (data contoh presentasi). Tidak ikut dalam build mode `http`, jadi build untuk backend bersih dari data maupun kode demo.
+- `konstanta.js` : daftar tahap pencairan dan rekening.
 
-Login menerima username dan password apa saja. Tombol "Reset data demo" ada di footer.
-Saat backend siap, isi tiap `*.api.js` diganti pemanggilan `http()` dari `client.js` dengan bentuk data yang sama.
-`BASE_URL` dibaca dari `VITE_API_BASE_URL` (lihat `.env.example`).
+Bentuk permintaan, respons, dan aturan lengkap ada di `API_KONTRAK.md` (folder frontend).

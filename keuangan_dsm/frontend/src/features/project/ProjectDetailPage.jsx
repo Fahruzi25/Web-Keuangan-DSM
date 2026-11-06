@@ -88,29 +88,20 @@ export default function ProjectDetailPage() {
           <Stat label="Belum cair" value={formatRupiah(p.belumCair)} tone="keluar" />
         </section>
 
-        <nav aria-label="Pilih pekerjaan" className="flex flex-wrap gap-2">
-          {p.pekerjaan.map((x) => (
-            <button key={x.id} type="button" aria-pressed={x.id === k.id}
-              onClick={() => setParams({ pekerjaan: String(x.id) })}
-              className={`inline-flex min-h-[2.5rem] items-center rounded-full border px-5 text-sm font-semibold transition ${x.id === k.id ? 'border-army-800 bg-army-800 text-white' : 'border-army-200 bg-white text-army-700 hover:border-army-400'}`}>
-              {x.nama}
-            </button>
-          ))}
-        </nav>
-
         <section className="card p-6 sm:p-8" aria-labelledby="judul-info">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 id="judul-info" className="text-lg font-bold">{k.nama}</h2>
-            {k.selesai && <span className="badge badge-ok">Pencairan selesai</span>}
+            <h2 id="judul-info" className="text-lg font-bold">Kontrak project</h2>
+            {p.selesai && <span className="badge badge-ok">Pencairan selesai</span>}
           </div>
           <dl className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ['Kontrak INAPROC', k.kontrakInaproc || '—'],
-              ['Nomor kontrak', k.nomorKontrak || '—'],
-              ['Tanggal kontrak', formatTanggal(k.tglKontrak)],
-              ['Nilai kontrak', formatRupiah(k.nilaiKontrak)],
-              ['SP2D', formatRupiah(k.sp2d)],
-              ['Pajak', `PPN ${PPN_PERSEN}% · PPh ${persenPph(k)}%`],
+              ['Kode project', p.kodeProject || '—'],
+              ['Kontrak INAPROC', p.kontrakInaproc || '—'],
+              ['Nomor kontrak', p.nomorKontrak || '—'],
+              ['Tanggal kontrak', formatTanggal(p.tglKontrak)],
+              ['Nilai kontrak', formatRupiah(p.nilaiKontrak)],
+              ['SP2D', formatRupiah(p.sp2d)],
+              ['Pajak', `PPN ${PPN_PERSEN}% · PPh ${persenPph(p)}%`],
             ].map(([label, v]) => (
               <div key={label}><dt className="label">{label}</dt><dd className="mt-1 font-medium">{v}</dd></div>
             ))}
@@ -121,9 +112,9 @@ export default function ProjectDetailPage() {
           <div className="flex flex-wrap items-center justify-between gap-3 p-6 pb-4">
             <div>
               <h2 id="judul-cair" className="text-lg font-bold">Pencairan SP2D</h2>
-              <p className="hint">Sudah cair {formatRupiah(k.cair)} · Belum cair {formatRupiah(k.belumCair)}</p>
+              <p className="hint">Sudah cair {formatRupiah(p.cair)} · Belum cair {formatRupiah(p.belumCair)}</p>
             </div>
-            <Link className="btn btn-primary btn-sm" to={`/transaksi/tambah?klasifikasi=PROJECT&projectId=${p.id}&pekerjaanId=${k.id}&tahap=UANG_MUKA`}>Catat pencairan</Link>
+            <Link className="btn btn-primary btn-sm" to={`/transaksi/tambah?klasifikasi=PROJECT&projectId=${p.id}&pekerjaanId=${p.pekerjaan[0].id}&tahap=UANG_MUKA`}>Catat pencairan</Link>
           </div>
           <div className="overflow-x-auto">
             <table className="tbl tbl-stack md:min-w-[560px]">
@@ -137,7 +128,7 @@ export default function ProjectDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {k.pencairan.map((t) => (
+                {p.pencairan.map((t) => (
                   <tr key={t.tahap}>
                     <th scope="row" className="font-semibold">{t.label}</th>
                     <td className="num">{t.realisasi ? formatAngka(t.realisasi) : '—'}</td>
@@ -145,7 +136,7 @@ export default function ProjectDetailPage() {
                     <td className="whitespace-nowrap text-army-600">{formatTanggal(t.tglPencairan)}</td>
                     <td className="aksi text-right">
                       {t.status === 'BELUM' && (
-                        <Link className="btn btn-sm" to={`/transaksi/tambah?klasifikasi=PROJECT&projectId=${p.id}&pekerjaanId=${k.id}&tahap=${t.tahap}`} aria-label={`Catat ${t.label}`}>Catat</Link>
+                        <Link className="btn btn-sm" to={`/transaksi/tambah?klasifikasi=PROJECT&projectId=${p.id}&pekerjaanId=${p.pekerjaan[0].id}&tahap=${t.tahap}`} aria-label={`Catat ${t.label}`}>Catat</Link>
                       )}
                     </td>
                   </tr>
@@ -155,15 +146,42 @@ export default function ProjectDetailPage() {
           </div>
         </section>
 
+        <section className="card overflow-hidden" aria-labelledby="judul-rekap">
+          <div className="p-6 pb-4">
+            <h2 id="judul-rekap" className="text-lg font-bold">Proyeksi dan realisasi</h2>
+            <p className="hint">Dana keluar mencakup biaya langsung dan total pesanan, belum termasuk pengeluaran operasional.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="tbl md:min-w-[560px]">
+              <thead>
+                <tr><th scope="col"><span className="sr-only">Pos</span></th><th scope="col" className="num">Proyeksi</th><th scope="col" className="num">Realisasi</th><th scope="col" className="num">On proses</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Dana masuk (SP2D)</th><td className="num">{formatAngka(p.proyeksiMasuk)}</td><td className="num text-army-600">{formatAngka(p.realisasiMasuk)}</td><td className="num">{formatAngka(p.onProsesMasuk)}</td></tr>
+                <tr><th scope="row">Dana keluar</th><td className="num">{formatAngka(p.proyeksiKeluar)}</td><td className="num text-ember-600">{formatAngka(p.realisasiKeluar)}</td><td className="num">{formatAngka(p.onProsesKeluar)}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <nav aria-label="Pilih pekerjaan" className="flex flex-wrap gap-2">
+          {p.pekerjaan.map((x) => (
+            <button key={x.id} type="button" aria-pressed={x.id === k.id}
+              onClick={() => setParams({ pekerjaan: String(x.id) })}
+              className={`inline-flex min-h-[2.5rem] items-center rounded-full border px-5 text-sm font-semibold transition ${x.id === k.id ? 'border-army-800 bg-army-800 text-white' : 'border-army-200 bg-white text-army-700 hover:border-army-400'}`}>
+              {x.nama}
+            </button>
+          ))}
+        </nav>
+
         <section className="card overflow-hidden" aria-labelledby="judul-pesanan">
           <div className="flex flex-wrap items-center justify-between gap-3 p-6 pb-4">
             <div>
-              <h2 id="judul-pesanan" className="text-lg font-bold">Pesanan ke AJK</h2>
+              <h2 id="judul-pesanan" className="text-lg font-bold">Pesanan ke AJK · {k.nama}</h2>
               <p className="hint">Total {formatRupiah(k.totalPesanan)} · Dibayar {formatRupiah(k.dibayarPesanan)} · Sisa {formatRupiah(k.sisaPesanan)}</p>
             </div>
-            <Link className="btn btn-sm" to={`/project/${p.id}/ubah`}>Tambah pesanan</Link>
           </div>
-          {k.pesanan.length === 0 && <Kosong>Belum ada pesanan pada pekerjaan ini. Tambahkan pesanan melalui Ubah project.</Kosong>}
+          {k.pesanan.length === 0 && <Kosong>Pesanan untuk pekerjaan ini belum dicatat.</Kosong>}
           {k.pesanan.map((ps) => (
             <article key={ps.id} className="border-t border-army-100 p-6" aria-label={`Pesanan ${labelPesanan(ps)}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -208,24 +226,6 @@ export default function ProjectDetailPage() {
               </div>
             </article>
           ))}
-        </section>
-
-        <section className="card overflow-hidden" aria-labelledby="judul-rekap">
-          <div className="p-6 pb-4">
-            <h2 id="judul-rekap" className="text-lg font-bold">Proyeksi dan realisasi</h2>
-            <p className="hint">Proyeksi dana keluar adalah biaya langsung project ditambah total pesanan. Pengeluaran operasional tidak termasuk.</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="tbl md:min-w-[560px]">
-              <thead>
-                <tr><th scope="col"><span className="sr-only">Pos</span></th><th scope="col" className="num">Proyeksi</th><th scope="col" className="num">Realisasi</th><th scope="col" className="num">On proses</th></tr>
-              </thead>
-              <tbody>
-                <tr><th scope="row">Dana masuk (SP2D)</th><td className="num">{formatAngka(k.proyeksiMasuk)}</td><td className="num text-army-600">{formatAngka(k.realisasiMasuk)}</td><td className="num">{formatAngka(k.onProsesMasuk)}</td></tr>
-                <tr><th scope="row">Dana keluar</th><td className="num">{formatAngka(k.proyeksiKeluar)}</td><td className="num text-ember-600">{formatAngka(k.realisasiKeluar)}</td><td className="num">{formatAngka(k.onProsesKeluar)}</td></tr>
-              </tbody>
-            </table>
-          </div>
         </section>
 
         <section className="card overflow-hidden" aria-labelledby="judul-trx">

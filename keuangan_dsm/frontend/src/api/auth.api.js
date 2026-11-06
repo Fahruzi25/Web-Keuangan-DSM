@@ -1,24 +1,35 @@
-/** MODE DEMO: login menerima username dan password apa saja. */
-import { balas, tolak } from './mockDb';
+import { ambilToken, hapusSesi, http, simpanSesi, USER_KEY } from './client';
+import { MODE_DEMO } from './mode';
 
-const TOKEN_KEY = 'dsm_token';
-export const USER_KEY = 'dsm_user';
-
-const baca = () => { try { return JSON.parse(sessionStorage.getItem(USER_KEY)); } catch { return null; } };
+export { USER_KEY };
+const demo = () => import('./demo/auth.demo');
 
 export async function login({ username, password }) {
-  if (!username?.trim() || !password) return tolak(401, 'Nama pengguna atau kata sandi tidak sesuai.');
-  const u = { id: 1, username: username.trim(), namaLengkap: username.trim() };
-  sessionStorage.setItem(TOKEN_KEY, 'demo');
-  sessionStorage.setItem(USER_KEY, JSON.stringify(u));
-  return balas(u);
+  if (MODE_DEMO) return (await demo()).login({ username, password });
+  const { token, user } = await http('/auth/login', { method: 'POST', body: { username, password } });
+  simpanSesi(token, user);
+  return user;
 }
 
 export async function logout() {
-  sessionStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(USER_KEY);
+  if (MODE_DEMO) return (await demo()).logout();
+  try {
+    await http('/auth/logout', { method: 'POST' });
+  } catch {
+    /* tetap keluar di sisi browser walaupun server tidak terjangkau */
+  } finally {
+    hapusSesi();
+  }
 }
 
+/** Memeriksa sesi saat halaman dibuka. Token kedaluwarsa atau tidak valid berarti belum masuk. */
 export async function me() {
-  return sessionStorage.getItem(TOKEN_KEY) ? baca() : null;
+  if (MODE_DEMO) return (await demo()).me();
+  if (!ambilToken()) return null;
+  try {
+    return await http('/auth/me');
+  } catch (err) {
+    if (err.status === 401) hapusSesi();
+    return null;
+  }
 }

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import Logo from '../ui/Logo';
-import { resetDemo } from '../../api/mockDb';
+import { MODE_DEMO } from '../../api/mode';
 
 const MENU = [
   { to: '/', label: 'Home' },
@@ -26,10 +26,26 @@ export default function Footer() {
       </div>
       <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-white/10 px-4 py-4 text-center text-xs text-army-400">
         <span>© {new Date().getFullYear()} PT Dawuan Slamet Mulyo. Seluruh hak dilindungi.</span>
-        <button type="button" className="underline underline-offset-4 hover:text-white"
-          onClick={() => { if (window.confirm('Kembalikan seluruh data demo ke kondisi awal? Perubahan yang telah dibuat akan hilang.')) { resetDemo(); window.location.assign('/'); } }}>
-          Reset data demo
-        </button>
+        {MODE_DEMO && (
+          <button type="button" className="underline underline-offset-4 hover:text-white"
+            onClick={async () => {
+              if (!window.confirm('Muat data contoh? Data demo yang ada saat ini akan diganti.')) return;
+              (await import('../../api/demo/mockDb')).muatContoh();
+              window.location.assign('/');
+            }}>
+            Muat data contoh
+          </button>
+        )}
+        {MODE_DEMO && (
+          <button type="button" className="underline underline-offset-4 hover:text-white"
+            onClick={async () => {
+              if (!window.confirm('Kosongkan seluruh data demo? Semua project dan transaksi yang dibuat akan dihapus.')) return;
+              (await import('../../api/demo/mockDb')).resetDemo();
+              window.location.assign('/');
+            }}>
+            Kosongkan data demo
+          </button>
+        )}
       </div>
     </footer>
   );

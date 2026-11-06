@@ -1,4 +1,5 @@
 /** Komponen kecil yang dipakai di banyak halaman. */
+import { formatAngka, formatRupiah, formatTanggal } from '../../utils/format';
 
 export function Stat({ label, value, sub, tone = 'default', children }) {
   const warna = {
@@ -64,3 +65,50 @@ export const Panah = () => (
     <path d="M11.3 3.3a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 1 1-1.4-1.4L14.6 10H3a1 1 0 1 1 0-2h11.6l-3.3-3.3a1 1 0 0 1 0-1.4Z" />
   </svg>
 );
+
+const NADA_RINCIAN = {
+  default: 'text-army-900',
+  masuk: 'text-army-600',
+  keluar: 'text-ember-600',
+  neg: 'text-red-700',
+  redup: 'text-army-400 font-medium',
+};
+
+/**
+ * Panel rincian: satu baris per butir, label di kiri dan nilai rata kanan, dipisah garis tipis.
+ * `baris`: [{ label, nilai, nada, tebal, lencana }]. `kolom` 2 menampilkan dua kolom pada layar lebar.
+ */
+export function Rincian({ judul, baris, kolom = 1, putih = false, className = '' }) {
+  return (
+    <section aria-label={judul} className={`overflow-hidden ${putih ? 'rounded-3xl border border-army-100 bg-white shadow-card' : 'rounded-2xl border border-army-200 bg-army-50/70'} ${className}`}>
+      {judul && <h3 className={`border-b px-4 py-3 text-xs font-bold uppercase tracking-wider text-army-600 ${putih ? 'border-army-100 bg-white' : 'border-army-200 bg-army-100/60'}`}>{judul}</h3>}
+      <dl className={kolom === 2 ? 'grid sm:grid-cols-2 sm:gap-x-8 sm:px-4' : ''}>
+        {baris.map((b, i) => (
+          <div key={b.label} className={`flex items-baseline justify-between gap-4 border-army-100 py-2.5 text-sm ${kolom === 2 ? 'px-4 sm:px-0' : 'px-4'} ${i > 0 ? 'border-t' : ''} ${kolom === 2 && i === 1 ? 'sm:border-t-0' : ''}`}>
+            <dt className="text-army-600">{b.label}</dt>
+            <dd className={`flex flex-wrap items-center justify-end gap-2 text-right font-num ${b.tebal ? 'font-bold' : 'font-semibold'} ${NADA_RINCIAN[b.nada ?? 'default']}`}>
+              {b.nilai}
+              {b.lencana}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  );
+}
+
+/** Pencairan SP2D per tahap (`pekerjaan` = objek yang memuat pencairan, sp2d, cair, belumCair; kini milik project): tahap yang sudah masuk beserta nilainya, lalu total SP2D dan sisanya. */
+export function PanelPencairan({ pekerjaan, className = '' }) {
+  const baris = pekerjaan.pencairan.map((t) => ({
+    label: t.label,
+    nada: t.status === 'DONE' ? 'masuk' : 'redup',
+    nilai: t.status === 'DONE' ? formatAngka(t.realisasi) : 'Belum cair',
+    lencana: t.status === 'DONE' ? <span className="badge badge-ok">{formatTanggal(t.tglPencairan)}</span> : null,
+  }));
+  baris.push(
+    { label: 'SP2D', nilai: formatRupiah(pekerjaan.sp2d), tebal: true },
+    { label: 'Sudah cair', nilai: formatRupiah(pekerjaan.cair), nada: 'masuk', tebal: true },
+    { label: 'Sisa SP2D', nilai: formatRupiah(pekerjaan.belumCair), nada: pekerjaan.belumCair > 0 ? 'keluar' : 'default', tebal: true },
+  );
+  return <Rincian judul="Pencairan SP2D" baris={baris} putih className={className} />;
+}

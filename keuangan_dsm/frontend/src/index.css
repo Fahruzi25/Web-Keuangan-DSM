@@ -100,3 +100,13 @@
   .tbl-stack td.aksi, .tbl-stack td[data-label=''] { @apply pt-2; }
   .tbl-stack tfoot tr { @apply py-2; }
 }
+
+
+/* Grafik arus dana: batang tumbuh dari garis nol, garis tergambar, titik muncul. Dimatikan bila pengguna meminta gerak dikurangi. */
+@keyframes bar-tumbuh { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes garis-gambar { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes titik-muncul { from { opacity: 0; } to { opacity: 1; } }
+.grafik-bar { transform-box: fill-box; transform-origin: bottom; animation: bar-tumbuh .7s cubic-bezier(.2, .7, .2, 1) both; }
+.grafik-garis { stroke-dasharray: 1; animation: garis-gambar 1s ease-out .35s both; }
+.grafik-titik { animation: titik-muncul .4s ease-out 1.1s both; }
+@media (prefers-reduced-motion: reduce) { .grafik-bar, .grafik-garis, .grafik-titik { animation: none; } }
